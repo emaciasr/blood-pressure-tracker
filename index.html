@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Monitor de Presión Arterial</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+    font-family: Georgia, 'Times New Roman', serif;
+    color: #e2e8f0;
+    padding-bottom: 40px;
+  }
+
+  /* HEADER */
+  .header {
+    background: linear-gradient(90deg, #1e3a5f 0%, #0f2847 100%);
+    border-bottom: 1px solid #334155;
+    padding: 20px 20px 14px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header-title { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+  .header-title h1 { font-size: 20px; font-weight: 700; color: #f8fafc; letter-spacing: -0.5px; }
+  .header-title p { font-size: 11px; color: #94a3b8; letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
+  .tabs { display: flex; gap: 4px; margin-top: 14px; }
+  .tab {
+    padding: 6px 14px; border-radius: 20px; border: none; cursor: pointer;
+    font-size: 12px; font-family: inherit; font-weight: 600;
+    background: transparent; color: #94a3b8; transition: all 0.2s;
+  }
+  .tab.active { background: #3b82f6; color: #fff; }
+
+  /* CONTENT */
+  .content { padding: 18px; max-width: 480px; margin: 0 auto; }
+
+  /* VIEWS */
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* DATE ROW */
+  .date-row {
+    display: flex; align-items: center; gap: 12px;
+    background: #1e293b; border-radius: 12px; padding: 12px 16px;
+    border: 1px solid #334155; margin-bottom: 18px;
+  }
+  .date-row input[type=date] {
+    background: transparent; border: none; color: #e2e8f0;
+    font-size: 15px; font-family: inherit; cursor: pointer; flex: 1;
+    outline: none; color-scheme: dark;
+  }
+
+  /* SLOT SUMMARY */
+  .slots-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 20px; }
+  .slot-card {
+    background: #0f172a; border: 1px solid #1e293b;
+    border-radius: 12px; padding: 12px 8px; text-align: center; position: relative;
+    transition: all 0.2s;
+  }
+  .slot-card.has-data { background: #1e293b; border-color: #334155; }
+  .slot-icon { font-size: 20px; margin-bottom: 4px; }
+  .slot-name { font-size: 10px; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .slot-reading { font-size: 17px; font-weight: 700; color: #f8fafc; margin-top: 6px; line-height: 1; }
+  .slot-unit { font-size: 10px; color: #64748b; margin-top: 2px; }
+  .slot-badge { font-size: 10px; font-weight: 700; border-radius: 20px; padding: 2px 7px; display: inline-block; margin-top: 6px; }
+  .slot-empty { font-size: 11px; color: #475569; margin-top: 8px; }
+  .slot-del {
+    position: absolute; top: 5px; right: 6px;
+    background: none; border: none; color: #475569; cursor: pointer; font-size: 13px; line-height: 1;
+  }
+
+  /* FORM */
+  .form-card {
+    background: #1e293b; border-radius: 16px; border: 1px solid #334155;
+    padding: 18px; margin-bottom: 18px;
+  }
+  .form-title { font-size: 13px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px; }
+  .slot-btns { display: flex; gap: 8px; margin-bottom: 14px; }
+  .slot-btn {
+    flex: 1; padding: 8px 4px; border-radius: 10px; border: none; cursor: pointer;
+    background: #0f172a; color: #64748b; font-size: 11px; font-family: inherit; font-weight: 700;
+    display: flex; flex-direction: column; align-items: center; gap: 3px; transition: all 0.2s;
+  }
+  .slot-btn.active { background: #3b82f6; color: #fff; }
+  .slot-btn-icon { font-size: 16px; }
+  .fields-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .field label { font-size: 10px; color: #64748b; display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .field input {
+    width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 8px;
+    padding: 10px 6px; color: #f8fafc; font-size: 17px; font-family: inherit;
+    text-align: center; outline: none;
+  }
+  .field input:focus { border-color: #3b82f6; }
+  .field-unit { font-size: 10px; color: #475569; text-align: center; margin-top: 2px; }
+  .classify-preview {
+    border-radius: 8px; padding: 8px 12px; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px; display: none;
+  }
+  .classify-preview.show { display: flex; }
+  .classify-preview span { font-size: 13px; font-weight: 700; }
+  textarea {
+    width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 8px;
+    padding: 10px; color: #e2e8f0; font-size: 13px; font-family: inherit;
+    resize: none; outline: none; margin-bottom: 12px;
+  }
+  textarea:focus { border-color: #3b82f6; }
+  .save-btn {
+    width: 100%; padding: 13px; border-radius: 10px; border: none;
+    background: linear-gradient(90deg, #3b82f6, #2563eb);
+    color: #fff; font-size: 15px; font-weight: 700; cursor: pointer;
+    font-family: inherit; transition: all 0.3s; letter-spacing: 0.5px;
+  }
+  .save-btn.ok { background: #22c55e; }
+
+  /* STATS ROW */
+  .stats-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 18px; }
+  .stat-card { background: #1e293b; border-radius: 12px; padding: 14px 10px; border: 1px solid #334155; text-align: center; }
+  .stat-val { font-size: 22px; font-weight: 700; }
+  .stat-unit { font-size: 10px; color: #64748b; }
+  .stat-lbl { font-size: 10px; color: #475569; margin-top: 4px; line-height: 1.2; }
+
+  /* CHART */
+  .chart-card { background: #1e293b; border-radius: 16px; border: 1px solid #334155; padding: 16px 12px 12px; margin-bottom: 16px; }
+  .metric-btns { display: flex; gap: 6px; margin-bottom: 14px; }
+  .metric-btn {
+    flex: 1; padding: 5px 2px; border-radius: 8px; border: none; cursor: pointer;
+    background: #0f172a; color: #64748b; font-size: 10px; font-family: inherit;
+    font-weight: 700; transition: all 0.2s;
+  }
+  .chart-subtitle { font-size: 11px; color: #64748b; text-align: center; margin-bottom: 10px; letter-spacing: 0.5px; }
+  .chart-wrap { position: relative; height: 220px; }
+  .chart-legend { display: flex; gap: 14px; justify-content: center; margin-top: 10px; flex-wrap: wrap; }
+  .chart-legend-item { font-size: 11px; color: #94a3b8; display: flex; align-items: center; gap: 5px; }
+  .chart-legend-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .zone-note { font-size: 10px; color: #64748b; margin-top: 8px; text-align: center; }
+  .no-chart { text-align: center; color: #475569; padding: 40px 20px; font-size: 14px; background: #1e293b; border-radius: 14px; border: 1px solid #334155; }
+  .no-chart-icon { font-size: 40px; margin-bottom: 12px; }
+
+  /* HISTORY CARDS */
+  .day-card { background: #1e293b; border-radius: 14px; border: 1px solid #334155; padding: 14px 16px; margin-bottom: 12px; }
+  .day-header { font-size: 13px; color: #94a3b8; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .today-badge { font-size: 10px; background: #3b82f6; color: #fff; border-radius: 20px; padding: 2px 8px; }
+  .entry-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid #0f172a; }
+  .entry-slot-name { font-size: 12px; color: #64748b; width: 60px; flex-shrink: 0; }
+  .entry-reading { font-size: 16px; font-weight: 700; color: #f8fafc; flex: 1; }
+  .entry-pulse { font-size: 12px; color: #64748b; margin-left: 8px; }
+  .entry-badge { font-size: 10px; font-weight: 700; border-radius: 20px; padding: 2px 8px; flex-shrink: 0; }
+
+  /* MINI HISTORY (trend) */
+  .mini-card {
+    background: #1e293b; border-radius: 12px; border: 1px solid #334155;
+    padding: 12px 16px; margin-bottom: 8px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .mini-date { font-size: 12px; color: #64748b; }
+  .mini-reading { font-size: 18px; font-weight: 700; color: #f8fafc; margin-top: 2px; }
+  .mini-sub { font-size: 10px; color: #475569; }
+
+  /* REFERENCE */
+  .ref-card { background: #0f172a; border-radius: 12px; border: 1px solid #1e293b; padding: 14px 16px; margin-top: 8px; }
+  .ref-title { font-size: 11px; color: #64748b; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; }
+  .ref-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #1e293b; }
+  .ref-label { font-size: 12px; }
+  .ref-range { font-size: 12px; color: #64748b; }
+
+  /* EMPTY */
+  .empty { text-align: center; color: #475569; padding: 40px 20px; font-size: 14px; }
+  .empty-icon { font-size: 40px; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-title">
+    <span style="font-size:28px">❤️</span>
+    <div>
+      <h1>Monitor de Presión Arterial</h1>
+      <p>Registro diario personal</p>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" onclick="setView('today')">📋 Registro</button>
+    <button class="tab" onclick="setView('trend')">📈 Tendencia</button>
+    <button class="tab" onclick="setView('history')">🗂 Historial</button>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- ── VIEW: REGISTRO ── -->
+  <div id="view-today" class="view active">
+
+    <div class="date-row">
+      <span style="font-size:18px">📅</span>
+      <input type="date" id="sel-date" oninput="renderToday()">
+    </div>
+
+    <div class="slots-grid" id="slots-summary"></div>
+
+    <div class="form-card">
+      <div class="form-title">+ Nuevo Registro</div>
+      <div class="slot-btns" id="slot-btns"></div>
+      <div class="fields-grid">
+        <div class="field">
+          <label>Sistólica</label>
+          <input type="number" id="f-sys" placeholder="120" oninput="previewClassify()">
+          <div class="field-unit">mmHg</div>
+        </div>
+        <div class="field">
+          <label>Diastólica</label>
+          <input type="number" id="f-dia" placeholder="80" oninput="previewClassify()">
+          <div class="field-unit">mmHg</div>
+        </div>
+        <div class="field">
+          <label>Pulso</label>
+          <input type="number" id="f-pulse" placeholder="70">
+          <div class="field-unit">bpm</div>
+        </div>
+      </div>
+      <div class="classify-preview" id="classify-preview">
+        <span id="classify-icon"></span>
+        <span id="classify-label"></span>
+      </div>
+      <textarea id="f-notes" rows="2" placeholder="Notas opcionales (síntomas, medicamentos...)"></textarea>
+      <button class="save-btn" id="save-btn" onclick="saveEntry()">Guardar Registro</button>
+    </div>
+
+    <div class="ref-card">
+      <div class="ref-title">📖 Referencia (mmHg)</div>
+      <div class="ref-row"><span class="ref-label" style="color:#22c55e">Normal</span><span class="ref-range">&lt; 120 / &lt; 80</span></div>
+      <div class="ref-row"><span class="ref-label" style="color:#f59e0b">Elevada</span><span class="ref-range">120–129 / &lt; 80</span></div>
+      <div class="ref-row"><span class="ref-label" style="color:#f97316">Hipertensión I</span><span class="ref-range">130–139 / 80–89</span></div>
+      <div class="ref-row"><span class="ref-label" style="color:#ef4444">Hipertensión II</span><span class="ref-range">≥ 140 / ≥ 90</span></div>
+    </div>
+  </div>
+
+  <!-- ── VIEW: TENDENCIA ── -->
+  <div id="view-trend" class="view">
+    <div class="stats-grid" id="trend-stats"></div>
+    <div id="trend-chart-area"></div>
+    <div id="trend-mini"></div>
+    <div class="ref-card">
+      <div class="ref-title">📖 Referencia (mmHg)</div>
+      <div class="ref-row"><span class="ref-label" style="color:#22c55e">Normal</span><span class="ref-range">&lt; 120 / &lt; 80</span></div>
+      <div class="ref-row"><span class="ref-label" style="color:#f59e0b">Elevada</span><span class="ref-range">120–129 / &lt; 80</span></div>
+      <div class="ref-row"><span class="ref-label" style="color:#f97316">Hipertensión I</span><span class="ref-range">130–139 / 80–89</span></div>
+      <div class="ref-row"><span class="ref-label" style="color:#ef4444">Hipertensión II</span><span class="ref-range">≥ 140 / ≥ 90</span></div>
+    </div>
+  </div>
+
+  <!-- ── VIEW: HISTORIAL ── -->
+  <div id="view-history" class="view">
+    <div id="history-list"></div>
+    <div class="ref-card">
+      <div class="ref-title">📖 Referencia (mmHg)</div>
+      <div class="ref-row"><span class="ref-label" style="color:#22c55e">Normal</span><span class="ref-range">&lt; 120 / &lt; 80</span></div>
+      <div class="ref-row"><span class="ref-label" style="color:#f59e0b">Elevada</span><span class="ref-range">120–129 / &lt; 80</span></div>
+      <div class="ref-row"><span class="ref-label" style="color:#f97316">Hipertensión I</span><span class="ref-range">130–139 / 80–89</span></div>
+      <div class="ref-row"><span class="ref-label" style="color:#ef4444">Hipertensión II</span><span class="ref-range">≥ 140 / ≥ 90</span></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const STORAGE_KEY = 'bp_tracker_records';
+const SLOTS = [
+  { id: 'manana',   label: 'Mañana',  icon: '🌅' },
+  { id: 'mediodia', label: 'Mediodía', icon: '☀️' },
+  { id: 'noche',    label: 'Noche',   icon: '🌙' },
+];
+const MONTHS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+let records = {};
+let activeSlot = 'manana';
+let activeView = 'today';
+let chartMetric = 'both';
+let bpChart = null;
+
+// ── HELPERS ──
+function todayStr() { return new Date().toISOString().split('T')[0]; }
+function formatDate(s) {
+  const [y,m,d] = s.split('-');
+  return `${d} ${MONTHS[parseInt(m)-1]} ${y}`;
+}
+function shortDate(s) {
+  const [,m,d] = s.split('-');
+  return `${d}/${MONTHS[parseInt(m)-1]}`;
+}
+function classifyBP(sys, dia) {
+  if (sys < 120 && dia < 80)  return { label:'Normal',         color:'#22c55e', bg:'#dcfce7' };
+  if (sys <= 129 && dia < 80) return { label:'Elevada',         color:'#f59e0b', bg:'#fef3c7' };
+  if (sys <= 139 || (dia >= 80 && dia <= 89)) return { label:'Hipertensión I',  color:'#f97316', bg:'#ffedd5' };
+  return { label:'Hipertensión II', color:'#ef4444', bg:'#fee2e2' };
+}
+function badge(sys, dia) {
+  const c = classifyBP(sys, dia);
+  return `<span class="entry-badge" style="color:${c.color};background:${c.bg}">${c.label}</span>`;
+}
+function slotBadge(sys, dia) {
+  const c = classifyBP(sys, dia);
+  return `<span class="slot-badge" style="color:${c.color};background:${c.bg}">${c.label}</span>`;
+}
+function avg(arr) {
+  const v = arr.filter(x => x != null && x !== undefined);
+  if (!v.length) return null;
+  return Math.round(v.reduce((a,b) => a+b, 0) / v.length);
+}
+
+// ── STORAGE ──
+function load() {
+  try { records = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { records = {}; }
+}
+function save() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(records)); } catch {}
+}
+
+// ── SORTED ENTRIES ──
+function sortedEntries() {
+  return Object.entries(records).sort(([a],[b]) => a.localeCompare(b)).slice(-14);
+}
+
+// ── VIEW SWITCHING ──
+function setView(v) {
+  activeView = v;
+  document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  document.getElementById('view-' + v).classList.add('active');
+  document.querySelectorAll('.tab')[['today','trend','history'].indexOf(v)].classList.add('active');
+  if (v === 'trend') renderTrend();
+  if (v === 'history') renderHistory();
+}
+
+// ── RENDER TODAY ──
+function renderToday() {
+  const date = document.getElementById('sel-date').value;
+  const dayData = records[date] || {};
+
+  // Slot summary
+  const grid = document.getElementById('slots-summary');
+  grid.innerHTML = SLOTS.map(s => {
+    const e = dayData[s.id];
+    if (e) {
+      return `<div class="slot-card has-data">
+        <button class="slot-del" onclick="deleteEntry('${date}','${s.id}')">✕</button>
+        <div class="slot-icon">${s.icon}</div>
+        <div class="slot-name">${s.label}</div>
+        <div class="slot-reading">${e.sys}/${e.dia}</div>
+        <div class="slot-unit">mmHg</div>
+        ${slotBadge(e.sys, e.dia)}
+      </div>`;
+    } else {
+      return `<div class="slot-card">
+        <div class="slot-icon">${s.icon}</div>
+        <div class="slot-name">${s.label}</div>
+        <div class="slot-empty">Sin registro</div>
+      </div>`;
+    }
+  }).join('');
+
+  // Slot buttons
+  const btns = document.getElementById('slot-btns');
+  btns.innerHTML = SLOTS.map(s =>
+    `<button class="slot-btn ${s.id === activeSlot ? 'active' : ''}" onclick="setSlot('${s.id}')">
+      <span class="slot-btn-icon">${s.icon}</span>${s.label}
+    </button>`
+  ).join('');
+}
+
+function setSlot(id) {
+  activeSlot = id;
+  renderToday();
+}
+
+function previewClassify() {
+  const sys = parseInt(document.getElementById('f-sys').value);
+  const dia = parseInt(document.getElementById('f-dia').value);
+  const prev = document.getElementById('classify-preview');
+  if (!sys || !dia || isNaN(sys) || isNaN(dia)) { prev.classList.remove('show'); return; }
+  const c = classifyBP(sys, dia);
+  const icon = c.label === 'Normal' ? '✅' : c.label === 'Elevada' ? '⚠️' : '🚨';
+  prev.style.background = c.bg;
+  document.getElementById('classify-icon').textContent = icon;
+  document.getElementById('classify-label').style.color = c.color;
+  document.getElementById('classify-label').textContent = c.label;
+  prev.classList.add('show');
+}
+
+function saveEntry() {
+  const date = document.getElementById('sel-date').value;
+  const sys = parseInt(document.getElementById('f-sys').value);
+  const dia = parseInt(document.getElementById('f-dia').value);
+  const pulse = parseInt(document.getElementById('f-pulse').value) || null;
+  const notes = document.getElementById('f-notes').value;
+  if (!sys || !dia) return;
+  const now = new Date();
+  const time = now.toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' });
+  if (!records[date]) records[date] = {};
+  records[date][activeSlot] = { sys, dia, pulse, notes, time };
+  save();
+  // Clear fields
+  ['f-sys','f-dia','f-pulse','f-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('classify-preview').classList.remove('show');
+  // Flash button
+  const btn = document.getElementById('save-btn');
+  btn.textContent = '✓ Guardado'; btn.classList.add('ok');
+  setTimeout(() => { btn.textContent = 'Guardar Registro'; btn.classList.remove('ok'); }, 2000);
+  renderToday();
+}
+
+function deleteEntry(date, slot) {
+  if (!records[date]) return;
+  delete records[date][slot];
+  if (!Object.keys(records[date]).length) delete records[date];
+  save();
+  renderToday();
+}
+
+// ── RENDER TREND ──
+function setChartMetric(m) {
+  chartMetric = m;
+  renderTrend();
+}
+
+function renderTrend() {
+  const entries = sortedEntries();
+  const allDesc = [...entries].reverse();
+
+  // Stats
+  const allVals = field => entries.flatMap(([,day]) => Object.values(day).map(e => e[field]).filter(Boolean));
+  const avgField = field => { const v = allVals(field); return v.length ? Math.round(v.reduce((a,b)=>a+b,0)/v.length) : '—'; };
+  document.getElementById('trend-stats').innerHTML = [
+    { label:'Sistólica Prom.', val: avgField('sys'), unit:'mmHg', color:'#ef4444' },
+    { label:'Diastólica Prom.', val: avgField('dia'), unit:'mmHg', color:'#3b82f6' },
+    { label:'Pulso Prom.', val: avgField('pulse'), unit:'bpm', color:'#a78bfa' },
+  ].map(s => `<div class="stat-card">
+    <div class="stat-val" style="color:${s.color}">${s.val}</div>
+    <div class="stat-unit">${s.unit}</div>
+    <div class="stat-lbl">${s.label}</div>
+  </div>`).join('');
+
+  const chartArea = document.getElementById('trend-chart-area');
+
+  if (entries.length < 2) {
+    chartArea.innerHTML = `<div class="no-chart">
+      <div class="no-chart-icon">📈</div>
+      Necesitas al menos 2 días de registros<br>para ver la gráfica de tendencia.
+    </div>`;
+    document.getElementById('trend-mini').innerHTML = '';
+    return;
+  }
+
+  // Chart data
+  const chartData = entries.map(([date, dayData]) => {
+    const evs = Object.values(dayData);
+    return {
+      label: shortDate(date),
+      sys:   avg(evs.map(e => e.sys)),
+      dia:   avg(evs.map(e => e.dia)),
+      pulse: avg(evs.map(e => e.pulse)),
+    };
+  });
+
+  const showSys   = chartMetric === 'both' || chartMetric === 'sys';
+  const showDia   = chartMetric === 'both' || chartMetric === 'dia';
+  const showPulse = chartMetric === 'pulse';
+
+  const metricBtns = [
+    { v:'both',  l:'Sys + Dia', c:'#94a3b8' },
+    { v:'sys',   l:'Sistólica', c:'#ef4444' },
+    { v:'dia',   l:'Diastólica',c:'#3b82f6' },
+    { v:'pulse', l:'Pulso',     c:'#a78bfa' },
+  ].map(m => `<button class="metric-btn" onclick="setChartMetric('${m.v}')"
+    style="background:${chartMetric===m.v ? m.c : '#0f172a'};color:${chartMetric===m.v ? '#fff' : '#64748b'}"
+    >${m.l}</button>`).join('');
+
+  chartArea.innerHTML = `<div class="chart-card">
+    <div class="metric-btns">${metricBtns}</div>
+    <div class="chart-subtitle">Últimos ${chartData.length} días · Promedio diario</div>
+    <div class="chart-wrap"><canvas id="bp-canvas"></canvas></div>
+    <div id="chart-legend-wrap"></div>
+    <div id="zone-note" class="zone-note"></div>
+  </div>`;
+
+  // Destroy old chart
+  if (bpChart) { bpChart.destroy(); bpChart = null; }
+
+  const datasets = [];
+  if (showSys) datasets.push({
+    label: 'Sistólica', data: chartData.map(d => d.sys),
+    borderColor: '#ef4444', backgroundColor: '#ef444430',
+    borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: '#ef4444',
+    tension: 0.3, fill: false,
+  });
+  if (showDia) datasets.push({
+    label: 'Diastólica', data: chartData.map(d => d.dia),
+    borderColor: '#3b82f6', backgroundColor: '#3b82f630',
+    borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: '#3b82f6',
+    tension: 0.3, fill: false,
+  });
+  if (showPulse) datasets.push({
+    label: 'Pulso', data: chartData.map(d => d.pulse),
+    borderColor: '#a78bfa', backgroundColor: '#a78bfa30',
+    borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: '#a78bfa',
+    tension: 0.3, fill: false,
+  });
+
+  // Y domain
+  const allNums = chartData.flatMap(d => [showSys&&d.sys, showDia&&d.dia, showPulse&&d.pulse].filter(Boolean));
+  const yMin = allNums.length ? Math.max(40, Math.min(...allNums) - 10) : 50;
+  const yMax = allNums.length ? Math.max(...allNums) + 15 : 180;
+
+  // Annotation lines
+  const annotations = {};
+  if (showSys) annotations.line140 = {
+    type: 'line', yMin: 140, yMax: 140,
+    borderColor: '#ef444460', borderWidth: 1.5, borderDash: [5,5],
+    label: { content:'140', display: true, position:'end', color:'#ef4444', font:{size:9}, backgroundColor:'transparent', padding:2 }
+  };
+  if (showDia) annotations.line90 = {
+    type: 'line', yMin: 90, yMax: 90,
+    borderColor: '#3b82f660', borderWidth: 1.5, borderDash: [5,5],
+    label: { content:'90', display: true, position:'end', color:'#3b82f6', font:{size:9}, backgroundColor:'transparent', padding:2 }
+  };
+
+  const ctx = document.getElementById('bp-canvas').getContext('2d');
+  bpChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: chartData.map(d => d.label), datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1e293b',
+          borderColor: '#334155', borderWidth: 1,
+          titleColor: '#94a3b8', bodyColor: '#e2e8f0',
+          padding: 10,
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y} ${ctx.dataset.label === 'Pulso' ? 'bpm' : 'mmHg'}`
+          }
+        },
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: '#64748b', font: { size: 10 } },
+          border: { display: false },
+        },
+        y: {
+          min: yMin, max: yMax,
+          grid: { color: '#1e293b' },
+          ticks: { color: '#64748b', font: { size: 10 } },
+          border: { display: false },
+        }
+      }
+    }
+  });
+
+  // Draw reference lines manually (no plugin needed)
+  // They're drawn via afterDraw plugin
+  bpChart.options.plugins.customLines = { showSys, showDia };
+
+  // Legend
+  const legendItems = datasets.map(d =>
+    `<div class="chart-legend-item">
+      <span class="chart-legend-dot" style="background:${d.borderColor}"></span>${d.label}
+    </div>`
+  ).join('');
+  document.getElementById('chart-legend-wrap').innerHTML = `<div class="chart-legend">${legendItems}</div>`;
+
+  // Zone notes
+  let notes = [];
+  if (showSys) notes.push('<span style="color:#ef444490">— 140 sistólica (umbral Hipert. II)</span>');
+  if (showDia) notes.push('<span style="color:#3b82f690">— 90 diastólica (umbral Hipert. II)</span>');
+  document.getElementById('zone-note').innerHTML = notes.join('&nbsp;&nbsp;');
+
+  // Mini history (last 5 days)
+  const mini = document.getElementById('trend-mini');
+  mini.innerHTML = allDesc.slice(0,5).map(([date, dayData]) => {
+    const evs = Object.values(dayData);
+    const avgSys = avg(evs.map(e => e.sys));
+    const avgDia = avg(evs.map(e => e.dia));
+    const c = classifyBP(avgSys, avgDia);
+    return `<div class="mini-card">
+      <div>
+        <div class="mini-date">${formatDate(date)}</div>
+        <div class="mini-reading">${avgSys}/${avgDia}</div>
+        <div class="mini-sub">promedio del día · ${evs.length} lectura${evs.length>1?'s':''}</div>
+      </div>
+      <span class="entry-badge" style="color:${c.color};background:${c.bg}">${c.label}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── RENDER HISTORY ──
+function renderHistory() {
+  const entries = [...sortedEntries()].reverse();
+  const list = document.getElementById('history-list');
+  if (!entries.length) {
+    list.innerHTML = `<div class="empty"><div class="empty-icon">📋</div>No hay registros aún.<br>Comienza registrando tu presión hoy.</div>`;
+    return;
+  }
+  list.innerHTML = entries.map(([date, dayData]) => {
+    const today = date === todayStr() ? '<span class="today-badge">Hoy</span>' : '';
+    const rows = SLOTS.filter(s => dayData[s.id]).map(s => {
+      const e = dayData[s.id];
+      return `<div class="entry-row">
+        <span style="font-size:16px">${s.icon}</span>
+        <span class="entry-slot-name">${s.label}</span>
+        <span class="entry-reading">${e.sys}/${e.dia}${e.pulse ? `<span class="entry-pulse">♥ ${e.pulse}</span>` : ''}</span>
+        ${badge(e.sys, e.dia)}
+      </div>`;
+    }).join('');
+    return `<div class="day-card">
+      <div class="day-header">📅 ${formatDate(date)} ${today}</div>
+      ${rows}
+    </div>`;
+  }).join('');
+}
+
+// ── INIT ──
+load();
+document.getElementById('sel-date').value = todayStr();
+renderToday();
+</script>
+</body>
+</html>
