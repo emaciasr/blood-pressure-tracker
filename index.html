@@ -5,7 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Presión">
+<meta name="theme-color" content="#0f2847">
 <title>Monitor de Presión Arterial</title>
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href="manifest.json">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -171,6 +175,16 @@
   /* EMPTY */
   .empty { text-align: center; color: #475569; padding: 40px 20px; font-size: 14px; }
   .empty-icon { font-size: 40px; margin-bottom: 12px; }
+
+  /* EXPORT */
+  .export-btn {
+    width: 100%; padding: 12px; border-radius: 10px; border: none;
+    background: #1e293b; border: 1px solid #334155;
+    color: #94a3b8; font-size: 13px; font-weight: 700; cursor: pointer;
+    font-family: inherit; transition: all 0.2s; margin-bottom: 10px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .export-btn:active { background: #334155; }
 </style>
 </head>
 <body>
@@ -256,6 +270,7 @@
 
   <!-- ── VIEW: HISTORIAL ── -->
   <div id="view-history" class="view">
+    <button class="export-btn" onclick="exportCSV()">⬇️ Exportar datos como CSV</button>
     <div id="history-list"></div>
     <div class="ref-card">
       <div class="ref-title">📖 Referencia (mmHg)</div>
@@ -624,6 +639,33 @@ function renderHistory() {
       ${rows}
     </div>`;
   }).join('');
+}
+
+// ── EXPORT CSV ──
+function exportCSV() {
+  const entries = Object.entries(records).sort(([a],[b]) => a.localeCompare(b));
+  if (!entries.length) { alert('No hay registros para exportar.'); return; }
+  const rows = ['Fecha,Horario,Sistólica,Diastólica,Pulso,Clasificación,Notas,Hora'];
+  entries.forEach(([date, dayData]) => {
+    SLOTS.forEach(s => {
+      const e = dayData[s.id];
+      if (!e) return;
+      const c = classifyBP(e.sys, e.dia);
+      rows.push([
+        date, s.label, e.sys, e.dia,
+        e.pulse || '', c.label,
+        (e.notes || '').replace(/,/g, ';'),
+        e.time || ''
+      ].join(','));
+    });
+  });
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `presion_arterial_${todayStr()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ── INIT ──
